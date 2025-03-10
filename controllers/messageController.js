@@ -199,9 +199,9 @@ async function sendSubServices(senderId, categoryId) {
             { id: "interior_detailing_premium", title: "🛋️ Interior Premium" },
         ],
         special_packages: [
-            { id: "package_10_washes", title: "🛠️ 10 Washes (3 Years)" },
-            { id: "package_unlimited_1_year", title: "♾️ Unlimited - 1 Year" },
-            { id: "package_unlimited_7_months", title: "📅 Unlimited - 7 Months" },
+            { id: "package_10_washes", title: "🛠️ 10 Washes (3Y) - ₹3333" },
+            { id: "package_unlimited_1_year", title: "♾️ 1Y Unlimited - ₹9999" },
+            { id: "package_unlimited_7_months", title: "📅 7M Unlimited - ₹6999" },
         ],
     };
 
@@ -223,6 +223,26 @@ async function sendSubServices(senderId, categoryId) {
     }
 
     try {
+        if (!Array.isArray(subServices)) {
+            // ✅ Directly send a text message for single-service categories
+            const directPayload = {
+                messaging_product: "whatsapp",
+                to: senderId,
+                type: "text",
+                text: { body: `🔹 ${subServices.title}\n\nFor more details, contact us.` },
+            };
+
+            await axios.post(process.env.WHATSAAP_API_URL, directPayload, {
+                headers: {
+                    Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+                    "Content-Type": "application/json",
+                },
+            });
+
+            console.log(`Single service '${subServices.title}' sent to ${senderId}`);
+            return;
+        }
+
         const payload = {
             messaging_product: "whatsapp",
             to: senderId,
@@ -260,6 +280,136 @@ async function sendSubServices(senderId, categoryId) {
     }
 }
 
+async function askPackagePurchase(senderId, packageId) {
+    try {
+        const payload = {
+            messaging_product: "whatsapp",
+            to: senderId,
+            type: "interactive",
+            interactive: {
+                type: "button",
+                header: { type: "text", text: "🎁 Package Purchase" },
+                body: { text: "Do you want to purchase this package?" },
+                footer: { text: "Powered by Red Dot Steam Spa" },
+                action: {
+                    buttons: [
+                        { type: "reply", reply: { id: "purchase_yes", title: "✅ Yes" } },
+                        { type: "reply", reply: { id: "purchase_no", title: "❌ No" } }
+                    ]
+                }
+            }
+        };
+
+        await axios.post(process.env.WHATSAAP_API_URL, payload, {
+            headers: {
+                Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+                "Content-Type": "application/json",
+            },
+        });
+
+        console.log(`Asked ${senderId} for package purchase confirmation`);
+    } catch (error) {
+        console.error("Error asking package purchase:", error.response?.data || error);
+    }
+}
+
+
+// Function to handle payment options
+async function askPaymentOption(senderId) {
+    try {
+        const payload = {
+            messaging_product: "whatsapp",
+            to: senderId,
+            type: "interactive",
+            interactive: {
+                type: "button",
+                header: { type: "text", text: "💳 Payment Option" },
+                body: { text: "How would you like to pay?" },
+                footer: { text: "Select a payment method" },
+                action: {
+                    buttons: [
+                        { type: "reply", reply: { id: "payment_online", title: "🌐 Online" } },
+                        { type: "reply", reply: { id: "payment_center", title: "🏢 Pay at Center" } }
+                    ]
+                }
+            }
+        };
+
+        await axios.post(process.env.WHATSAAP_API_URL, payload, {
+            headers: {
+                Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+                "Content-Type": "application/json",
+            },
+        });
+
+        console.log(`Asked ${senderId} for payment option`);
+    } catch (error) {
+        console.error("Error asking payment option:", error.response?.data || error);
+    }
+}
+
+// Function to show booking preview
+async function showBookingPreview(senderId, packageName, paymentMethod) {
+    try {
+
+        const formattedPackage = formatText(packageName);
+        const formattedPayment = formatText(paymentMethod);
+
+        const previewPayload = {
+            messaging_product: "whatsapp",
+            to: senderId,
+            type: "interactive",
+            interactive: {
+                type: "button",
+                header: { type: "text", text: "Booking Preview" },
+                body: {
+                    text: `📦 Package: ${formattedPackage}\n💳 Payment: ${formattedPayment}\n\nConfirm your booking.`,
+                },
+                footer: { text: "Powered by Red Dot Steam Spa" },
+                action: {
+                    buttons: [
+                        { type: "reply", reply: { id: "confirm_booking1", title: "Confirm" } },
+                        { type: "reply", reply: { id: "cancel_booking1", title: "Cancel" } },
+                    ],
+                },
+            },
+        };
+
+        await axios.post(process.env.WHATSAAP_API_URL, previewPayload, {
+            headers: {
+                Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+                "Content-Type": "application/json",
+            },
+        });
+
+        console.log(`Booking preview sent to ${senderId}`);
+    } catch (error) {
+        console.error("Error sending booking preview:", error.response?.data || error);
+    }
+}
+
+// Function to confirm booking
+async function confirmBooking(senderId) {
+    try {
+        const confirmationPayload = {
+            messaging_product: "whatsapp",
+            to: senderId,
+            type: "text",
+            text: { body: "✅ Booking Confirmed! Thank you for choosing Red Dot Steam Spa." },
+        };
+
+        await axios.post(process.env.WHATSAAP_API_URL, confirmationPayload, {
+            headers: {
+                Authorization: `Bearer ${process.env.WHATSAPP_ACCESS_TOKEN}`,
+                "Content-Type": "application/json",
+            },
+        });
+
+        console.log(`Booking confirmed for ${senderId}`);
+    } catch (error) {
+        console.error("Error confirming booking:", error.response?.data || error);
+    }
+}
 
 const carWashServices = {
     exterior_wash: {
@@ -649,13 +799,24 @@ function getNextSevenDays() {
 // Generate Time Slots with booked status
 async function getTimeOptions(date) {
     const bookedSlots = await getBookedTimeSlots(date);
-    return Array.from({ length: 10 }, (_, i) => {
-        const time = `${10 + i}:00`;
-        return {
-            id: `slot_${time}`,
-            title: bookedSlots.includes(time) ? `❌ ${time} (Booked)` : time,
-        };
-    });
+    const startTime = 10 * 60; // 10:00 AM
+    const endTime = 20 * 60; // 8:00 PM
+    const interval = 45;
+
+    const timeSlots = [];
+    for (let time = startTime; time < endTime; time += interval) {
+        const hours = Math.floor(time / 60);
+        const minutes = time % 60;
+        const formattedTime = `${hours}:${minutes === 0 ? "00" : minutes}`;
+
+        timeSlots.push({
+            id: `slot_${formattedTime}`,
+            title: bookedSlots.includes(formattedTime) ? `❌ ${formattedTime} (Booked)` : formattedTime,
+        });
+
+    }
+    // Limit slots to a maximum of 10 items
+    return timeSlots.slice(0, 10);
 }
 
 // Changing to  UpperCase
@@ -665,6 +826,22 @@ const formatText = (text) => {
         .replace(/_/g, " ") // Replace underscores with spaces
         .replace(/\b\w/g, (char) => char.toUpperCase()); // Capitalize each word
 };
+
+// Car modal
+async function askCarModel(senderId) {
+    await sendMessage(
+        senderId,
+        "🚗 Please select your car model:",
+        [
+            { type: "reply", reply: { id: "hatchback", title: "🚙 Hatchback" } },
+            { type: "reply", reply: { id: "sedan", title: "🚗 Sedan" } },
+            { type: "reply", reply: { id: "muv", title: "🚐 MUV" } },
+            { type: "reply", reply: { id: "suv", title: "🚜 SUV" } },
+            { type: "reply", reply: { id: "luxury", title: "🏎️ Luxury" } }
+        ]
+    );
+}
+
 
 // Function for Incoming Messages
 const incomingMessages = async (req, res) => {
@@ -717,184 +894,213 @@ const incomingMessages = async (req, res) => {
         // }
 
 
-        // Ask for premium or normal package before selecting service
+        // await sendMessage(
+        //     senderId,
+        //     "💼 Would you like a *Premium* or *Normal* package?",
+        //     [
+        //         { type: "reply", reply: { id: "premium", title: "🌟 Premium" } },
+        //         { type: "reply", reply: { id: "normal", title: "🔹 Normal" } },
+        //     ]
+        // );
+
+
+        // Appointment
         if (listReply === "appointment") {
             console.log("User clicked book a slot");
+
             await sendMessage(
                 senderId,
-                "💼 Would you like a *Premium* or *Normal* package?",
+                "📜 Do you have a subscription?",
                 [
-                    { type: "reply", reply: { id: "premium", title: "🌟 Premium" } },
-                    { type: "reply", reply: { id: "normal", title: "🔹 Normal" } },
+                    { type: "reply", reply: { id: "yes_subscription", title: "✅ Yes" } },
+                    { type: "reply", reply: { id: "no_subscription", title: "❌ No" } }
                 ]
             );
-            conversation[senderId].awaitingPackageSelection = true;
+            conversation[senderId].awaitingSubscriptionResponse = true;
             return res.sendStatus(200);
         }
 
-        // Handle package selection
-        if (conversation[senderId].awaitingPackageSelection && listReply) {
-            conversation[senderId].selectedPackage = listReply;
-            await showAllServices(senderId);
-            conversation[senderId].awaitingPackageSelection = false;
-            conversation[senderId].awaitingCategory = true;
+        // Handle Subscription Response
+        if (conversation[senderId]?.awaitingSubscriptionResponse && listReply) {
+            conversation[senderId].awaitingSubscriptionResponse = false;
+
+            if (listReply === "yes_subscription") {
+                conversation[senderId].awaitingSubscriptionID = true;
+                await sendMessage(senderId, "🔢 Please enter your Subscription ID:");
+            } else {
+                // // Directly show services if no subscription
+                await showAllServices(senderId);
+                conversation[senderId].awaitingService = true;
+            }
             return res.sendStatus(200);
         }
 
-        // Service selection flow remains unchanged
-        if (conversation[senderId].awaitingCategory && listReply && listReply !== "back_main") {
-            console.log("User selected a category:", listReply);
-            conversation[senderId].selectedService = listReply;
-            conversation[senderId].awaitingCategory = false;
+
+        const userInput = listReply || messageText || null;
+
+
+        if (!userInput) return res.sendStatus(200);
+
+        // Handle Subscription ID Input
+        if (conversation[senderId]?.awaitingSubscriptionID && userInput) {
+            conversation[senderId].subscriptionID = userInput;
+            conversation[senderId].awaitingSubscriptionID = false;
+
+            await askCarModel(senderId);
             conversation[senderId].awaitingModelSelection = true;
-
-
-            // Ask for model selection
-            await sendMessage(
-                senderId,
-                "🚗 Please select your car model:",
-                [
-                    { type: "reply", reply: { id: "hatchback", title: "🚙 Hatchback" } },
-                    { type: "reply", reply: { id: "sedan", title: "🚗 Sedan" } },
-                    { type: "reply", reply: { id: "muv", title: "🚐 MUV" } },
-                    { type: "reply", reply: { id: "suv", title: "🚜 SUV" } },
-                    { type: "reply", reply: { id: "luxury", title: "🏎️ Luxury" } }
-                ]
-            );
             return res.sendStatus(200);
         }
 
-        // Handle model selection
-        if (conversation[senderId].awaitingModelSelection && listReply) {
+        // Handle Model Selection (For both cases: with or without subscription)
+        if (conversation[senderId]?.awaitingModelSelection && listReply) {
             if (["hatchback", "sedan", "muv", "suv", "luxury"].includes(listReply)) {
                 conversation[senderId].selectedModel = listReply;
                 conversation[senderId].awaitingModelSelection = false;
-                conversation[senderId].awaitingService = true;
+
+                // If user has subscription, show prices directly
+                if (conversation[senderId]?.subscriptionID) {
+                    conversation[senderId].awaitingService = true; // Skip service selection
+                    await showAllServices(senderId);
+                    return res.sendStatus(200);
+                } else {
+                    // If no subscription, ask for service selection first
+                    conversation[senderId].awaitingService = true;
+                    await showAllServices(senderId);
+                    return res.sendStatus(200);
+                }
             } else {
-                // If user selects an invalid model, ask again
-                await sendMessage(
-                    senderId,
-                    "🚗 Please select a valid car model:",
-                    [
-                        { type: "reply", reply: { id: "hatchback", title: "🚙 Hatchback" } },
-                        { type: "reply", reply: { id: "sedan", title: "🚗 Sedan" } },
-                        { type: "reply", reply: { id: "muv", title: "🚐 MUV" } },
-                        { type: "reply", reply: { id: "suv", title: "🚜 SUV" } },
-                        { type: "reply", reply: { id: "luxury", title: "🏎️ Luxury" } }
-                    ]
-                );
+                await askCarModel(senderId);
                 return res.sendStatus(200);
             }
         }
 
-        // Handle service price
-        if (conversation[senderId].awaitingService && listReply) {
-            conversation[senderId].selectedModel = listReply;
-
-            // Define service prices based on the selected package
-            const servicePrices = {
-                "SINGLE WASH": {
-                    hatchback: { normal: 550, premium: 800 },
-                    sedan: { normal: 650, premium: 850 },
-                    muv: { normal: 750, premium: 950 },
-                    suv: { normal: 850, premium: 1000 },
-                    luxury: { normal: 950, premium: 1200 }
-                },
-                "WASH WAX": {
-                    hatchback: { normal: 1100, premium: 1300 },
-                    sedan: { normal: 1200, premium: 1400 },
-                    muv: { normal: 1300, premium: 1400 },
-                    suv: { normal: 1400, premium: 1500 },
-                    luxury: { normal: 2000, premium: 2500 }
-                },
-                "INTERIOR DETAILING": {
-                    hatchback: { normal: 1800, premium: 2500 },
-                    sedan: { normal: 2000, premium: 2800 },
-                    muv: { normal: 2500, premium: 3500 },
-                    suv: { normal: 3000, premium: 4000 },
-                    luxury: { normal: 4000, premium: 6000 }
-                },
-                "HARD WATER FRONT": {
-                    hatchback: { normal: 800, premium: 1000 },
-                    sedan: { normal: 900, premium: 1100 },
-                    muv: { normal: 1000, premium: 1200 },
-                    suv: { normal: 1100, premium: 1300 },
-                    luxury: { normal: 1200, premium: 1400 }
-                },
-                "HARD WATER FULL GLASS": {
-                    hatchback: { normal: 1500, premium: 1700 },
-                    sedan: { normal: 1700, premium: 1900 },
-                    muv: { normal: 2000, premium: 2200 },
-                    suv: { normal: 2500, premium: 2700 },
-                    luxury: { normal: 3500, premium: 3800 }
-                },
-                "HARD WATER FULL CAR": {
-                    hatchback: { normal: 3000, premium: 3400 },
-                    sedan: { normal: 3500, premium: 4000 },
-                    muv: { normal: 4500, premium: 5000 },
-                    suv: { normal: 5500, premium: 6000 },
-                    luxury: { normal: 7000, premium: 7500 }
-                },
-                "ENGINE DETAILING": {
-                    hatchback: { normal: 500, premium: 700 },
-                    sedan: { normal: 600, premium: 800 },
-                    muv: { normal: 700, premium: 900 },
-                    suv: { normal: 900, premium: 1100 },
-                    luxury: { normal: 1500, premium: 1700 }
-                }
-            };
-
-            let selectedService = conversation[senderId].selectedService.replace(/_/g, " ").toUpperCase();
-
-            let selectedModel = conversation[senderId].selectedModel;
-            let selectedPackage = conversation[senderId].selectedPackage;
-
-            // Debugging logs
-            console.log("Selected Model:", selectedModel);
-            console.log("Selected Service:", selectedService);
-            console.log("Selected Package:", selectedPackage);
-
-
-
-            // Validate service
-            if (!servicePrices[selectedService]) {
-                await sendMessage(senderId, "❌ Error: Please select a valid service.");
-                return;
-            }
-
-            // Validate selected model
-            if (!selectedModel || !servicePrices[selectedService]?.[selectedModel]) {
-                await sendMessage(senderId, "❌ Error: Please select a valid car model.");
-                return;
-            }
-
-            // Ensure selectedPackage is defined for services that require it
-            if (!selectedPackage && servicePrices[selectedService][selectedModel]?.normal !== undefined) {
-                selectedPackage = "normal";  // Default to "normal" if missing
-            }
-
-            let price =
-                selectedService
-                    ? servicePrices[selectedService][selectedModel]?.[selectedPackage]
-                    : servicePrices[selectedService][selectedModel];
-
-            if (price === undefined) {
-                await sendMessage(senderId, "❌ Error: Invalid selection. Please try again.");
-                return;
-            }
-
-            conversation[senderId].servicePrice = price;
-
-            await sendMessage(
-                senderId,
-                `💰 The price for *${selectedService}* on your *${selectedModel.toUpperCase()}* with *${selectedPackage.toUpperCase()}* package is ₹${price}.`
-            );
-
-            // Proceed to date selection
-            await sendMessage(senderId, "📅 Please select a date for your booking.");
-            await handleServiceSelection(senderId, listReply);
+        // Handle Service Selection (Only for users WITHOUT Subscription ID)
+        if (!conversation[senderId]?.subscriptionID && conversation[senderId]?.awaitingService && listReply) {
+            conversation[senderId].selectedService = listReply.trim().replace(/_/g, " ").toUpperCase();
             conversation[senderId].awaitingService = false;
-            conversation[senderId].awaitingDate = true;
+
+            // Ask for car model next
+            await askCarModel(senderId);
+            conversation[senderId].awaitingModelSelection = true;
+            return res.sendStatus(200);
+        }
+
+
+        // Define service prices based on the selected package
+        const servicePrices = {
+            "SINGLE WASH": {
+                hatchback: 550,
+                sedan: 650,
+                muv: 750,
+                suv: 850,
+                luxury: 950
+            },
+            "WASH WAX": {
+                hatchback: 1100,
+                sedan: 1200,
+                muv: 1300,
+                suv: 1500,
+                luxury: 2000
+            },
+            "INTERIOR DETAILING": {
+                hatchback: { normal: 1800, premium: 2500 },
+                sedan: { normal: 2000, premium: 2800 },
+                muv: { normal: 2500, premium: 3500 },
+                suv: { normal: 3000, premium: 4000 },
+                luxury: { normal: 4000, premium: 6000 }
+            },
+            "HARD WATER FRONT": {
+                hatchback: 800,
+                sedan: 900,
+                muv: 1000,
+                suv: 1100,
+                luxury: 1200,
+            },
+            "HARD WATER FULL GLASS": {
+                hatchback: 1500,
+                sedan: 1700,
+                muv: 2000,
+                suv: 2500,
+                luxury: 3500,
+            },
+            "HARD WATER FULL CAR": {
+                hatchback: 3000,
+                sedan: 3500,
+                muv: 4500,
+                suv: 5500,
+                luxury: 7000,
+            },
+            "ENGINE DETAILING": {
+                hatchback: 500,
+                sedan: 600,
+                muv: 700,
+                suv: 900,
+                luxury: 1500,
+            }
+        };
+
+        // After car model selection, ask for service and show price
+        if (conversation[senderId]?.awaitingService && listReply) {
+            const selectedModel = conversation[senderId]?.selectedModel;
+            const selectedService = listReply.trim().replace(/_/g, " ").toUpperCase();
+            console.log("Received listReply:", listReply);
+            console.log("Formatted selectedService:", selectedService);
+            console.log("Available Services:", Object.keys(servicePrices));
+
+
+            if (servicePrices[selectedService]) {
+                const priceDetails = servicePrices[selectedService][selectedModel];
+
+                if (selectedService === "INTERIOR DETAILING" && typeof priceDetails === "object") {
+                    // If service has both normal and premium, ask for selection
+                    conversation[senderId].awaitingPremiumSelection = true;
+                    conversation[senderId].selectedService = selectedService;
+                    await sendMessage(
+                        senderId,
+                        "💼 Would you like a *Premium* or *Normal* package?",
+                        [
+                            { type: "reply", reply: { id: "premium", title: "🌟 Premium" } },
+                            { type: "reply", reply: { id: "normal", title: "🔹 Normal" } },
+                        ]
+                    );
+                } else {
+                    conversation[senderId].servicePrice = priceDetails;
+                    // If only one price exists, show it directly
+                    await sendMessage(senderId, `✅ The price for ${selectedService} on a ${selectedModel} is ₹${priceDetails}.`);
+                    conversation[senderId].awaitingDate = true;
+                    await sendMessage(senderId, "📅 Please select a date for your service.");
+                    await showDateOptions(senderId);
+                }
+
+                conversation[senderId].awaitingService = false;
+                return res.sendStatus(200);
+            } else {
+                await sendMessage(senderId, "⚠️ Invalid service selection. Please select a valid service.");
+                return res.sendStatus(200);
+            }
+        }
+
+        // Handle premium/normal selection
+        if (conversation[senderId]?.awaitingPremiumSelection && listReply) {
+            const selectedModel = conversation[senderId]?.selectedModel;
+            const selectedService = conversation[senderId]?.selectedService;
+            const priceDetails = servicePrices[selectedService][selectedModel];
+
+            if (listReply.toLowerCase() === "normal" || listReply.toLowerCase() === "premium") {
+                const price = priceDetails[listReply.toLowerCase()];
+
+                conversation[senderId].servicePrice = price;
+
+                await sendMessage(senderId, `✅ The price for ${selectedService} (${listReply}) on a ${selectedModel} is ₹${price}.`);
+                conversation[senderId].awaitingPremiumSelection = false;
+                conversation[senderId].awaitingDate = true;
+                await sendMessage(senderId, "📅 Please select a date for your service.");
+                await showDateOptions(senderId);
+            } else {
+                conversation[senderId].awaitingPremiumSelection = false;
+                conversation[senderId].awaitingDate = true;
+            }
+
             return res.sendStatus(200);
         }
 
@@ -961,49 +1167,29 @@ const incomingMessages = async (req, res) => {
                 return res.sendStatus(200);
             }
 
-            // Ask for phone number 
-            await sendMessage(senderId, "📞 Please enter your phone number:");
+            // Ask for vehicle number
+            await sendMessage(senderId, "🚗 Please enter your car number (e.g., KL07AB1234):");
             conversation[senderId].awaitingTime = false;
-            conversation[senderId].awaitingPhoneNumber = true;
+            conversation[senderId].awaitingCarNumber = true;
             return res.sendStatus(200);
         };
 
-        // Ask for car number
-        if (conversation[senderId].awaitingPhoneNumber && messageText) {
-            conversation[senderId].phone = messageText;
-            await sendMessage(
-                senderId,
-                "🚗 Please enter your car number (e.g., KL07AB1234):"
-            );
-            conversation[senderId].awaitingPhoneNumber = false;
-            conversation[senderId].awaitingCarNumber = true;
-            return res.sendStatus(200);
-        }
-
-
-        // Payment method
+        // Vehicle Number Entry
         if (conversation[senderId].awaitingCarNumber && messageText) {
             conversation[senderId].carNumber = messageText;
 
             // Ask for payment method
             const paymentOptions = [
-                { type: "reply", reply: { id: "online", title: "💳 Online" } },
-                {
-                    type: "reply",
-                    reply: { id: "pay_at_center", title: "🏢 Pay at Center" },
-                },
+                { type: "reply", reply: { id: "online", title: "💳 Online Payment" } },
+                { type: "reply", reply: { id: "pay_at_center", title: "🏢 Pay at Center" } },
             ];
-
-            await sendMessage(
-                senderId,
-                "💰 How would you like to pay?",
-                paymentOptions
-            );
+            await sendMessage(senderId, "💰 How would you like to pay?", paymentOptions);
 
             conversation[senderId].awaitingCarNumber = false;
             conversation[senderId].awaitingPaymentMethod = true;
             return res.sendStatus(200);
         }
+
 
         // payment options
         if (conversation[senderId].awaitingPaymentMethod && listReply) {
@@ -1015,8 +1201,12 @@ const incomingMessages = async (req, res) => {
 
             conversation[senderId].paymentMethod = selectedPaymentMethod;
 
+            // Corrected block
+            const carModel = conversation[senderId]?.selectedModel ? conversation[senderId].selectedModel.toUpperCase() : "Not provided";
+            const carNumber = conversation[senderId]?.carNumber ? conversation[senderId].carNumber.toUpperCase() : "Not provided";
+
             // Ask for confirmation
-            const confirmationMessage = `📅 *Confirm Your Booking:*\n\n🕒 *Time Slot:* ${conversation[senderId].selectedTime}\n📅 *Date:* ${conversation[senderId].selectedDate}\n📞 *Phone:* ${conversation[senderId].phone}\n🚗 *Car Number:* ${conversation[senderId].carNumber}\n🚘 *Car Model:* ${conversation[senderId].selectedModel}\n💳 *Payment Method:* ${conversation[senderId].paymentMethod}\n🔧 *Selected Service:* ${formatText(conversation[senderId].selectedService)}\n💰 *Price:* ₹${conversation[senderId].servicePrice}`;
+            const confirmationMessage = `📅 *Confirm Your Booking:*\n\n🕒 *Time Slot:* ${conversation[senderId].selectedTime}\n📅 *Date:* ${conversation[senderId].selectedDate}\n🚗 *Car Number:* ${carNumber}\n🚘 *Car Model:* ${carModel}\n💳 *Payment Method:* ${conversation[senderId].paymentMethod}\n🔧 *Selected Service:* ${formatText(conversation[senderId].selectedService)}\n💰 *Price:* ₹${conversation[senderId].servicePrice}`;
             const confirmationButtons = [
                 {
                     type: "reply",
@@ -1039,16 +1229,17 @@ const incomingMessages = async (req, res) => {
         if (listReply === "confirm_booking") {
             console.log("User confirmed booking");
             console.log("Booking details:", conversation[senderId]);
+            console.log("sender id:", senderId);
+
             const newBooking = new Booking({
                 bookingId: new mongoose.Types.ObjectId(),
                 paymentMethod: conversation[senderId]?.paymentMethod,
                 preferredTimeSlot: conversation[senderId]?.selectedTime,
                 preferredDate: conversation[senderId]?.selectedDate,
-                carNumber: conversation[senderId]?.carNumber || "Not provided",
-                carMakeModel: conversation[senderId]?.selectedModel || "Not provided",
-                phone: conversation[senderId]?.phone || "Not provided",
+                carNumber: conversation[senderId]?.carNumber ? conversation[senderId].carNumber.toUpperCase() : "Not provided",
+                carMakeModel: conversation[senderId]?.selectedModel ? conversation[senderId].selectedModel.toUpperCase() : "Not provided",
+                phone: senderId || "Not provided",
                 name: conversation[senderId]?.name || "Not provided",
-                userId: senderId,
                 serviceType: formatText(conversation[senderId]?.selectedService),
                 price: conversation[senderId]?.servicePrice || 0,
             });
@@ -1056,7 +1247,7 @@ const incomingMessages = async (req, res) => {
 
             await sendMessage(
                 senderId,
-                `✅ *Booking Confirmed!*\n\n📅 Date: ${conversation[senderId].selectedDate}\n🕒 Time: ${conversation[senderId].selectedTime}\n🚗 Car Number: ${conversation[senderId].carNumber}\n🚘 Car Model: ${conversation[senderId].selectedModel}\n📞 Phone: ${conversation[senderId].phone}\n👤 Name: ${conversation[senderId].name}\n💳 Payment Method: ${conversation[senderId].paymentMethod}\n🔧 Selected Service: ${formatText(conversation[senderId].selectedService)}\n💰 *Total Price:* ₹${conversation[senderId].servicePrice}`
+                `✅ *Booking Confirmed!*\n\n📅 Date: ${conversation[senderId].selectedDate}\n🕒 Time: ${conversation[senderId].selectedTime}\n🚗 Car Number: ${conversation[senderId].carNumber.toUpperCase()}\n🚘 Car Model: ${conversation[senderId].selectedModel.toUpperCase()}\n📞 Phone: ${senderId}\n👤 Name: ${conversation[senderId].name}\n💳 Payment Method: ${conversation[senderId].paymentMethod}\n🔧 Selected Service: ${formatText(conversation[senderId].selectedService)}\n💰 *Total Price:* ₹${conversation[senderId].servicePrice}`
             );
             delete conversation[senderId];
             return res.sendStatus(200);
@@ -1086,7 +1277,7 @@ const incomingMessages = async (req, res) => {
             } else if (listId) {
                 console.log("Processing listId:", listId);
 
-                if ([
+                const subServiceList = [
                     "single_wash",
                     "wash_wax",
                     "hard_water_front",
@@ -1095,9 +1286,22 @@ const incomingMessages = async (req, res) => {
                     "engine_detailing",
                     "interior_detailing",
                     "special_packages"
-                ].includes(listId)) {
+                ];
+
+                const packageList = [
+                    "package_10_washes",
+                    "package_unlimited_1_year",
+                    "package_unlimited_7_months"
+                ];
+
+                if (subServiceList.includes(listId)) {
                     console.log("Fetching sub-services for:", listId);
                     await sendSubServices(senderId, listId);
+                } else if (packageList.includes(listId)) {
+                    console.log("User selected a package, initiating purchase flow...");
+                    selectedPackage = listId;
+                    await sendServiceDetails(senderId, listId);
+                    await askPackagePurchase(senderId, listId);
                 } else {
                     console.log("Checking if listId exists in carWashServices:", listId, carWashServices[listId]);
 
@@ -1108,6 +1312,27 @@ const incomingMessages = async (req, res) => {
                         console.log("No service details found for:", listId);
                     }
                 }
+            }
+
+            if (buttonId === "purchase_yes") {
+                await askPaymentOption(senderId);
+            } else if (buttonId === "purchase_no") {
+                await sendMessage(senderId, "No problem! Let us know if you need anything else. 😊");
+            } else if (buttonId === "payment_online" || buttonId === "payment_center") {
+                console.log("Selected Payment Method:", buttonId);
+                console.log("Selected Package:", selectedPackage);
+
+                if (!selectedPackage) {
+                    console.error("Error: No package selected before payment.");
+                    await sendMessage(senderId, "Please select a package first before choosing a payment method.");
+                    return;
+                }
+
+                await showBookingPreview(senderId, selectedPackage, buttonId);
+            } else if (buttonId === "confirm_booking1") {
+                await confirmBooking(senderId);
+            } else if (buttonId === "cancel_booking1") {
+                await sendMessage(senderId, "Booking has been cancelled. Let us know if you need assistance!");
             }
 
         }

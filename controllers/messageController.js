@@ -1,5 +1,6 @@
 const dotenv = require("dotenv");
 const mongoose = require("mongoose");
+const Razorpay = require("razorpay");
 dotenv.config();
 const Booking = require("../model/bookingModel");
 const sendMessage = require("../helperFunctions/sendMessage");
@@ -17,11 +18,20 @@ const handleServiceSelection = require("../helperFunctions/handleServiceSelectio
 const showDateOptions = require("../helperFunctions/showDateOptions");
 const { getTimeOptions, getBookedTimeSlots } = require("../helperFunctions/getTimeOptions");
 const sendServiceDetails = require("../helperFunctions/sendServiceDetails");
+const sendBookingConfirmation = require("../helperFunctions/sendBookingConfirmation");
+const { saveConversation, getConversation } = require("../redis/redis");
 const askCarModel = require("../helperFunctions/askCarModel");
 const carWashServices = require("../services/carWashServices");
 const formatText = require("../services/formatText");
+const servicePrices = require("../services/servicePrices");
 
 const conversation = {};
+
+// Intialize Razorpay
+const razorpay = new Razorpay({
+    key_id: process.env.RAZORPAY_KEY_ID,
+    key_secret: process.env.RAZORPAY_SECRET,
+});
 
 // Function for Incoming Messages
 const incomingMessages = async (req, res) => {
@@ -104,28 +114,60 @@ const incomingMessages = async (req, res) => {
             return res.sendStatus(200);
         }
 
+
         // Handle Model Selection (For both cases: with or without subscription)
         if (conversation[senderId]?.awaitingModelSelection && listReply) {
             if (["hatchback", "sedan", "muv", "suv", "luxury"].includes(listReply)) {
                 conversation[senderId].selectedModel = listReply;
                 conversation[senderId].awaitingModelSelection = false;
 
-                // If user has subscription, show prices directly
                 if (conversation[senderId]?.subscriptionID) {
-                    conversation[senderId].awaitingService = true; // Skip service selection
-                    await showAllServices(senderId);
-                    return res.sendStatus(200);
-                } else {
-                    // If no subscription, ask for service selection first
+                    // If user has a subscription, proceed to service selection
                     conversation[senderId].awaitingService = true;
                     await showAllServices(senderId);
-                    return res.sendStatus(200);
+                } else {
+                    // If no subscription, directly show the price and date options
+                    const selectedModel = conversation[senderId].selectedModel;
+                    console.log("select modal in else case:", selectedModel);
+
+                    const selectedService = conversation[senderId].selectedService;
+                    console.log("selected service in else case:", selectedService);
+
+
+                    if (selectedService && servicePrices[selectedService]) {
+                        const priceDetails = servicePrices[selectedService][selectedModel];
+
+                        if (selectedService === "INTERIOR DETAILING" && typeof priceDetails === "object") {
+                            // If service has both normal and premium, ask for selection
+                            conversation[senderId].awaitingPremiumSelection = true;
+                            await sendMessage(
+                                senderId,
+                                "💼 Would you like a *Premium* or *Normal* package?",
+                                [
+                                    { type: "reply", reply: { id: "premium", title: "🌟 Premium" } },
+                                    { type: "reply", reply: { id: "normal", title: "🔹 Normal" } },
+                                ]
+                            );
+                        } else {
+                            conversation[senderId].servicePrice = priceDetails;
+                            await sendMessage(senderId, `✅ The price for ${selectedService} on a ${selectedModel} is ₹${priceDetails}.`);
+                            conversation[senderId].awaitingDate = true;
+                            await sendMessage(senderId, "📅 Please select a date for your service.");
+                            await showDateOptions(senderId);
+                        }
+                    } else {
+                        await sendMessage(senderId, "⚠️ No default service found. Please contact support.");
+                    }
                 }
+
+                return res.sendStatus(200);
             } else {
                 await askCarModel(senderId);
                 return res.sendStatus(200);
             }
         }
+
+
 
         // Handle Service Selection (Only for users WITHOUT Subscription ID)
         if (!conversation[senderId]?.subscriptionID && conversation[senderId]?.awaitingService && listReply) {
@@ -138,59 +180,6 @@ const incomingMessages = async (req, res) => {
             return res.sendStatus(200);
         }
 
-
-        // Define service prices based on the selected package
-        const servicePrices = {
-            "SINGLE WASH": {
-                hatchback: 550,
-                sedan: 650,
-                muv: 750,
-                suv: 850,
-                luxury: 950
-            },
-            "WASH WAX": {
-                hatchback: 1100,
-                sedan: 1200,
-                muv: 1300,
-                suv: 1500,
-                luxury: 2000
-            },
-            "INTERIOR DETAILING": {
-                hatchback: { normal: 1800, premium: 2500 },
-                sedan: { normal: 2000, premium: 2800 },
-                muv: { normal: 2500, premium: 3500 },
-                suv: { normal: 3000, premium: 4000 },
-                luxury: { normal: 4000, premium: 6000 }
-            },
-            "HARD WATER FRONT": {
-                hatchback: 800,
-                sedan: 900,
-                muv: 1000,
-                suv: 1100,
-                luxury: 1200,
-            },
-            "HARD WATER FULL GLASS": {
-                hatchback: 1500,
-                sedan: 1700,
-                muv: 2000,
-                suv: 2500,
-                luxury: 3500,
-            },
-            "HARD WATER FULL CAR": {
-                hatchback: 3000,
-                sedan: 3500,
-                muv: 4500,
-                suv: 5500,
-                luxury: 7000,
-            },
-            "ENGINE DETAILING": {
-                hatchback: 500,
-                sedan: 600,
-                muv: 700,
-                suv: 900,
-                luxury: 1500,
-            }
-        };
 
         // After car model selection, ask for service and show price
         if (conversation[senderId]?.awaitingService && listReply) {
@@ -221,6 +210,7 @@ const incomingMessages = async (req, res) => {
                     // If only one price exists, show it directly
                     await sendMessage(senderId, `✅ The price for ${selectedService} on a ${selectedModel} is ₹${priceDetails}.`);
                     conversation[senderId].awaitingDate = true;
+                    conversation[senderId].selectedService = selectedService;
                     await sendMessage(senderId, "📅 Please select a date for your service.");
                     await showDateOptions(senderId);
                 }
@@ -256,8 +246,6 @@ const incomingMessages = async (req, res) => {
 
             return res.sendStatus(200);
         }
-
-
 
         // Going back to main menu
         if (listReply === "back_main") {
@@ -345,69 +333,165 @@ const incomingMessages = async (req, res) => {
 
 
         // payment options
-        if (conversation[senderId].awaitingPaymentMethod && listReply) {
-            let selectedPaymentMethod = "Pay at Center"; // Default value
+        // if (conversation[senderId].awaitingPaymentMethod && listReply) {
+        //     let selectedPaymentMethod = "Pay at Center"; // Default value
 
-            if (listReply === "online") selectedPaymentMethod = "Online";
-            else if (listReply === "pay_at_center")
+        //     if (listReply === "online") selectedPaymentMethod = "Online";
+        //     else if (listReply === "pay_at_center")
+        //         selectedPaymentMethod = "Pay at Center";
+
+        //     conversation[senderId].paymentMethod = selectedPaymentMethod;
+
+        //     const carModel = conversation[senderId]?.selectedModel ? conversation[senderId].selectedModel.toUpperCase() : "Not provided";
+        //     const carNumber = conversation[senderId]?.carNumber ? conversation[senderId].carNumber.toUpperCase() : "Not provided";
+
+        //     // Ask for confirmation
+        //     const confirmationMessage = `📅 *Confirm Your Booking:*\n\n🕒 *Time Slot:* ${conversation[senderId].selectedTime}\n📅 *Date:* ${conversation[senderId].selectedDate}\n🚗 *Car Number:* ${carNumber}\n🚘 *Car Model:* ${carModel}\n💳 *Payment Method:* ${conversation[senderId].paymentMethod}\n🔧 *Selected Service:* ${formatText(conversation[senderId].selectedService)}\n💰 *Price:* ₹${conversation[senderId].servicePrice}`;
+        //     const confirmationButtons = [
+        //         {
+        //             type: "reply",
+        //             reply: { id: "confirm_booking", title: "✅ Confirm" },
+        //         },
+        //         { type: "reply", reply: { id: "cancel_booking", title: "❌ Cancel" } },
+        //     ];
+
+        //     await sendMessage(senderId, confirmationMessage, confirmationButtons);
+
+        //     conversation[senderId].awaitingPaymentMethod = false;
+        //     conversation[senderId].awaitingConfirmation = true;
+        //     return res.sendStatus(200);
+        // }
+
+
+        if (conversation[senderId].awaitingPaymentMethod && listReply) {
+            let selectedPaymentMethod;
+
+            if (listReply === "online") {
+                selectedPaymentMethod = "Online";
+            } else if (listReply === "pay_at_center") {
                 selectedPaymentMethod = "Pay at Center";
+            }
 
             conversation[senderId].paymentMethod = selectedPaymentMethod;
+            console.log("payment method:", selectedPaymentMethod);
 
-            const carModel = conversation[senderId]?.selectedModel ? conversation[senderId].selectedModel.toUpperCase() : "Not provided";
-            const carNumber = conversation[senderId]?.carNumber ? conversation[senderId].carNumber.toUpperCase() : "Not provided";
 
-            // Ask for confirmation
-            const confirmationMessage = `📅 *Confirm Your Booking:*\n\n🕒 *Time Slot:* ${conversation[senderId].selectedTime}\n📅 *Date:* ${conversation[senderId].selectedDate}\n🚗 *Car Number:* ${carNumber}\n🚘 *Car Model:* ${carModel}\n💳 *Payment Method:* ${conversation[senderId].paymentMethod}\n🔧 *Selected Service:* ${formatText(conversation[senderId].selectedService)}\n💰 *Price:* ₹${conversation[senderId].servicePrice}`;
-            const confirmationButtons = [
-                {
-                    type: "reply",
-                    reply: { id: "confirm_booking", title: "✅ Confirm" },
-                },
-                { type: "reply", reply: { id: "cancel_booking", title: "❌ Cancel" } },
-            ];
+            if (selectedPaymentMethod === "Pay at Center") {
 
-            await sendMessage(senderId, confirmationMessage, confirmationButtons);
+                // Create a payment link
+                const paymentLinkData = {
+                    amount: 100, // amount in paise
+                    currency: "INR",
+                    description: "Advance Payment for Service Booking",
+                    customer: {
+                        name: conversation[senderId].name || "Customer",
+                        contact: senderId,
+                    },
+                    notify: { sms: false, email: false },
+                    reminder_enable: true,
+                    expire_by: Math.floor(Date.now() / 1000) + 3600, // expires in 1 hour
+                    notes: { booking_id: senderId },
+                };
 
-            conversation[senderId].awaitingPaymentMethod = false;
-            conversation[senderId].awaitingConfirmation = true;
+                try {
+                    const paymentLink = await razorpay.paymentLink.create(paymentLinkData);
+                    const paymentUrl = paymentLink.short_url;
+
+                    // send payment link to user
+                    const paymentMessage = `💳 *Advance Payment Required*\n\nPlease pay ₹1 in advance to confirm your booking.\n\n🔗 [Click here to Pay](${paymentUrl})`;
+                    await sendMessage(senderId, paymentMessage);
+
+                    conversation[senderId].awaitingPaymentConfirmation = true;
+
+                    // Save conversation state to Redis
+                    await saveConversation(senderId, conversation[senderId]);
+                } catch (error) {
+                    console.error("Error create payment link:", error);
+                    await sendMessage(senderId, "⚠️ Payment link generation failed. Please try again.");
+                };
+
+                conversation[senderId].awaitingPaymentMethod = false;
+                return res.sendStatus(200);
+            }
+
+            // If user selects "Online" proceed to booking confirmation
+            // Save conversation state to Redis
+            await saveConversation(senderId, conversation[senderId]);
+            await sendBookingConfirmation(senderId);
             return res.sendStatus(200);
+        };
+
+
+
+        const conversationState = await getConversation(senderId);
+
+        if (conversationState.paymentMethod && conversationState.paymentMethod.trim().toLowerCase() === "pay at center") {
+            advancePaid = 1; // 1 rs
+            remainingAmount = conversationState.servicePrice - advancePaid;
+        } else {
+            advancePaid = 0;
+            remainingAmount = conversationState.servicePrice;
+
         }
 
-
-
+        console.log("Received listReply:", listReply);
+        console.log("Current Conversation State:", conversationState);
 
         // Confirm appointment booking
-        if (listReply === "confirm_booking") {
+        if (listReply === "confirm_booking" && conversationState?.awaitingConfirmation) {
             console.log("User confirmed booking");
-            console.log("Booking details:", conversation[senderId]);
-            console.log("sender id:", senderId);
+
+            // Reset awaiting confirmation so it doesn't loop
+            conversationState.awaitingConfirmation = false;
+            await saveConversation(senderId, conversationState);
 
             const newBooking = new Booking({
                 bookingId: new mongoose.Types.ObjectId(),
-                paymentMethod: conversation[senderId]?.paymentMethod,
-                preferredTimeSlot: conversation[senderId]?.selectedTime,
-                preferredDate: conversation[senderId]?.selectedDate,
-                carNumber: conversation[senderId]?.carNumber ? conversation[senderId].carNumber.toUpperCase() : "Not provided",
-                carMakeModel: conversation[senderId]?.selectedModel ? conversation[senderId].selectedModel.toUpperCase() : "Not provided",
+                paymentMethod: conversationState?.paymentMethod,
+                preferredTimeSlot: conversationState?.selectedTime,
+                preferredDate: conversationState?.selectedDate,
+                carNumber: conversationState?.carNumber ? conversationState.carNumber.toUpperCase() : "Not provided",
+                carMakeModel: conversationState?.selectedModel ? conversationState.selectedModel.toUpperCase() : "Not provided",
                 phone: senderId || "Not provided",
-                name: conversation[senderId]?.name || "Not provided",
-                serviceType: formatText(conversation[senderId]?.selectedService),
-                price: conversation[senderId]?.servicePrice || 0,
+                name: conversationState?.name || "Not provided",
+                serviceType: formatText(conversationState?.selectedService),
+                price: conversationState.paymentMethod.trim().toLowerCase() === "pay at center"
+                    ? remainingAmount
+                    : conversationState.servicePrice,
             });
             await newBooking.save();
 
             await sendMessage(
                 senderId,
-                `✅ *Booking Confirmed!*\n\n📅 Date: ${conversation[senderId].selectedDate}\n🕒 Time: ${conversation[senderId].selectedTime}\n🚗 Car Number: ${conversation[senderId].carNumber.toUpperCase()}\n🚘 Car Model: ${conversation[senderId].selectedModel.toUpperCase()}\n📞 Phone: ${senderId}\n👤 Name: ${conversation[senderId].name}\n💳 Payment Method: ${conversation[senderId].paymentMethod}\n🔧 Selected Service: ${formatText(conversation[senderId].selectedService)}\n💰 *Total Price:* ₹${conversation[senderId].servicePrice}`
+                `✅ *Booking Confirmed!*\n\n` +
+                `👤 *Name:* ${userName}\n` +
+                `📞 *Phone:* ${senderId}\n` +
+                `📅 *Date:* ${conversationState.selectedDate}\n` +
+                `🕒 *Time:* ${conversationState.selectedTime}\n` +
+                `🔧 *Selected Service:* ${formatText(conversationState.selectedService)}\n` +
+                `🚗 *Car Number:* ${conversationState.carNumber.toUpperCase()}\n` +
+                `🚘 *Car Model:* ${conversationState.selectedModel.toUpperCase()}\n` +
+                `💳 *Payment Method:* ${conversationState.paymentMethod}\n` +
+                `💰 *Total Price:* ₹${conversationState.servicePrice}\n` +
+                (conversationState.paymentMethod.trim().toLowerCase() === "pay at center"
+                    ? `💵 *Advance Paid:* ₹${advancePaid}\n🧾 *Amount Due:* ₹${remainingAmount}\n`
+                    : "")
             );
-            delete conversation[senderId];
+            // Also delete from Redis if not needed anymore
+            await saveConversation(senderId, {});
+
             return res.sendStatus(200);
         }
 
         // Cancel the booking appointment
         if (listReply === "cancel_booking") {
             console.log("User cancelled booking");
+            // Ensure awaitingConfirmation is reset
+            conversationState.awaitingConfirmation = false;
+
+            // Save the updated conversation
+            await saveConversation(senderId, {});
+
             await sendMessage(
                 senderId,
                 "Appointment cancelled. Type 'hi' to start over."
@@ -505,7 +589,7 @@ const verifyWebHook = async (req, res) => {
             return res.status(200).send(req.query["hub.challenge"]);
         }
         console.log("Webhook verified");
-        return sendStatus(403);
+        return sendStatus(303);
     } catch (error) {
         console.error("Error verifying webhook:", error);
     }

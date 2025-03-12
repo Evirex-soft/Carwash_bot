@@ -5,9 +5,6 @@ const Booking = require("../model/bookingModel");
 // Get Booked Slots for a Date
 const getBookedTimeSlots = async function (date) {
     const bookings = await Booking.find({ preferredDate: new Date(date) });
-
-    console.log("Bookings found for date:", date, bookings);
-
     return bookings.map((b) => b.preferredTimeSlot);
 }
 

@@ -5,8 +5,6 @@ const { getConversation, saveConversation } = require("../redis/redis");
 const sendBookingConfirmation = async function (senderId) {
     // Retrieve conversation state from Redis
     const conversationState = await getConversation(senderId);
-    console.log("convo state in sendbooking:", conversationState);
-
 
     if (!conversationState) {
         console.error(`❌ No conversation data found for senderId: ${senderId}`);

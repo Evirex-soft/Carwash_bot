@@ -332,36 +332,6 @@ const incomingMessages = async (req, res) => {
         }
 
 
-        // payment options
-        // if (conversation[senderId].awaitingPaymentMethod && listReply) {
-        //     let selectedPaymentMethod = "Pay at Center"; // Default value
-
-        //     if (listReply === "online") selectedPaymentMethod = "Online";
-        //     else if (listReply === "pay_at_center")
-        //         selectedPaymentMethod = "Pay at Center";
-
-        //     conversation[senderId].paymentMethod = selectedPaymentMethod;
-
-        //     const carModel = conversation[senderId]?.selectedModel ? conversation[senderId].selectedModel.toUpperCase() : "Not provided";
-        //     const carNumber = conversation[senderId]?.carNumber ? conversation[senderId].carNumber.toUpperCase() : "Not provided";
-
-        //     // Ask for confirmation
-        //     const confirmationMessage = `📅 *Confirm Your Booking:*\n\n🕒 *Time Slot:* ${conversation[senderId].selectedTime}\n📅 *Date:* ${conversation[senderId].selectedDate}\n🚗 *Car Number:* ${carNumber}\n🚘 *Car Model:* ${carModel}\n💳 *Payment Method:* ${conversation[senderId].paymentMethod}\n🔧 *Selected Service:* ${formatText(conversation[senderId].selectedService)}\n💰 *Price:* ₹${conversation[senderId].servicePrice}`;
-        //     const confirmationButtons = [
-        //         {
-        //             type: "reply",
-        //             reply: { id: "confirm_booking", title: "✅ Confirm" },
-        //         },
-        //         { type: "reply", reply: { id: "cancel_booking", title: "❌ Cancel" } },
-        //     ];
-
-        //     await sendMessage(senderId, confirmationMessage, confirmationButtons);
-
-        //     conversation[senderId].awaitingPaymentMethod = false;
-        //     conversation[senderId].awaitingConfirmation = true;
-        //     return res.sendStatus(200);
-        // }
-
 
         if (conversation[senderId].awaitingPaymentMethod && listReply) {
             let selectedPaymentMethod;
@@ -375,9 +345,10 @@ const incomingMessages = async (req, res) => {
             conversation[senderId].paymentMethod = selectedPaymentMethod;
             console.log("payment method:", selectedPaymentMethod);
 
+            // Mark awaitingPaymentMethod as false before saving to Redis
+            conversation[senderId].awaitingPaymentMethod = false;
 
             if (selectedPaymentMethod === "Pay at Center") {
-
                 // Create a payment link
                 const paymentLinkData = {
                     amount: 100, // amount in paise
@@ -397,29 +368,26 @@ const incomingMessages = async (req, res) => {
                     const paymentLink = await razorpay.paymentLink.create(paymentLinkData);
                     const paymentUrl = paymentLink.short_url;
 
-                    // send payment link to user
+                    // Send payment link to user
                     const paymentMessage = `💳 *Advance Payment Required*\n\nPlease pay ₹1 in advance to confirm your booking.\n\n🔗 [Click here to Pay](${paymentUrl})`;
                     await sendMessage(senderId, paymentMessage);
 
                     conversation[senderId].awaitingPaymentConfirmation = true;
-
-                    // Save conversation state to Redis
-                    await saveConversation(senderId, conversation[senderId]);
                 } catch (error) {
-                    console.error("Error create payment link:", error);
+                    console.error("Error creating payment link:", error);
                     await sendMessage(senderId, "⚠️ Payment link generation failed. Please try again.");
-                };
+                }
 
-                conversation[senderId].awaitingPaymentMethod = false;
+                await saveConversation(senderId, conversation[senderId]);
                 return res.sendStatus(200);
             }
 
-            // If user selects "Online" proceed to booking confirmation
-            // Save conversation state to Redis
+            // If "Online" is selected, proceed to booking confirmation
             await saveConversation(senderId, conversation[senderId]);
             await sendBookingConfirmation(senderId);
-            return res.sendStatus(200);
-        };
+            res.sendStatus(200);
+        }
+
 
 
 
@@ -435,7 +403,7 @@ const incomingMessages = async (req, res) => {
         }
 
         console.log("Received listReply:", listReply);
-        console.log("Current Conversation State:", conversationState);
+        console.log("Current Conversation awaiting  State:", conversationState.awaitingConfirmation);
 
         // Confirm appointment booking
         if (listReply === "confirm_booking" && conversationState?.awaitingConfirmation) {

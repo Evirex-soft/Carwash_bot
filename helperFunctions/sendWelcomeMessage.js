@@ -1,16 +1,26 @@
 const axios = require("axios");
 const dotenv = require("dotenv");
+const mongoose = require('mongoose');
+const Banner = require('../model/bannerModel');
 dotenv.config();
 
 const conversation = {};
 
 
-
-const sendWelcomeMessage = async function (senderId, userName) {
+const sendWelcomeMessage = async function (senderId, userName, isNewCustomer) {
     try {
         // Store the user's name in the conversation object
         conversation[senderId] = conversation[senderId] || {};
         conversation[senderId].name = userName;
+
+        // fetch the banner
+        const banner = await Banner.findOne();
+        const imageUrl = banner ? banner.imageUrl : "https://via.placeholder.com/500";
+
+
+        const messageBody = isNewCustomer
+            ? `Hi ${userName}, \n\nWelcome to Red Dot Steam Spa! 🎉 As a new customer, you get a *10% discount* on your first car wash! 🚗✨`
+            : `Hi ${userName}, \n\nWelcome back! Explore our premium services and book your appointment today!`;
 
         const payload = {
             messaging_product: "WHATSAPP",
@@ -20,14 +30,9 @@ const sendWelcomeMessage = async function (senderId, userName) {
                 type: "button",
                 header: {
                     type: "image",
-                    image: {
-                        link: "https://images.unsplash.com/photo-1608506375591-b90e1f955e4b?q=80&w=2080&auto=format&fit=crop&ixlib=rb-4.0.3&ixid=M3wxMjA3fDB8MHxwaG90by1wYWdlfHx8fGVufDB8fHx8fA%3D%3D",
-                    },
+                    image: { link: imageUrl },
                 },
-                body: {
-                    text: `HI ${userName},
-                    Explore our premium services and book your appointment today!`,
-                },
+                body: { text: messageBody },
                 footer: { text: "Powered by Red Dot Steam Spa" },
                 action: {
                     buttons: [

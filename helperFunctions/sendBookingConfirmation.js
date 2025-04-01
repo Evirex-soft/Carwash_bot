@@ -14,12 +14,25 @@ const sendBookingConfirmation = async function (senderId) {
     const carModel = conversationState.selectedModel ? conversationState.selectedModel.toUpperCase() : "Not provided";
     const carNumber = conversationState.carNumber ? conversationState.carNumber.toUpperCase() : "Not provided";
 
-    let priceDetails = `💰 *Total Price:* ₹${conversationState.servicePrice}`;
+    let totalPrice = conversationState.servicePrice;
+    let discountApplied = 0;
+
+    // Apply 10% discount for new customer
+    if (conversationState.isNewCustomer) {
+        discountApplied = Math.round(totalPrice * 0.10);
+        totalPrice -= discountApplied;
+    }
+
+    let priceDetails = `💰 *Total Price:* ₹${totalPrice}`;
+
+    if (discountApplied > 0) {
+        priceDetails += `\n🎉 *New Customer Discount (10%):* -₹${discountApplied}`;
+    }
 
 
     if (conversationState.paymentMethod && conversationState.paymentMethod.trim().toLowerCase() === "pay at center") {
         const advancePaid = 1; // 1 rs
-        const remainingAmount = conversationState.servicePrice - advancePaid;
+        const remainingAmount = totalPrice - advancePaid - discountApplied;
         priceDetails += `\n💵 *Advance Paid:* ₹${advancePaid}\n🧾 *Amount Due:* ₹${remainingAmount}`;
     };
 
@@ -47,6 +60,8 @@ const sendBookingConfirmation = async function (senderId) {
     await sendMessage(senderId, confirmationMessage, confirmationButtons);
 
     conversationState.awaitingConfirmation = true;
+    conversationState.discountApplied = discountApplied;
+    conversationState.finalPrice = totalPrice;
 
     // Save updated state back to Redis
     await saveConversation(senderId, conversationState);

@@ -15,7 +15,7 @@ const sendWelcomeMessage = async function (senderId, userName, isNewCustomer) {
 
         // fetch the banner
         const banner = await Banner.findOne();
-        const imageUrl = banner ? banner.imageUrl : "https://via.placeholder.com/500";
+        const imageUrl = banner ? banner.imageUrl : "https://images.pexels.com/photos/3354647/pexels-photo-3354647.jpeg?cs=srgb&dl=pexels-koprivakart-3354647.jpg&fm=jpg";
 
 
         const messageBody = isNewCustomer

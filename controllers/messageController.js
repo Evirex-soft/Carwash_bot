@@ -14,7 +14,6 @@ const showBookingPreview = require("../helperFunctions/showBookingPreview");
 const confirmBooking = require("../helperFunctions/confirmBooking");
 const sendWelcomeMessage = require("../helperFunctions/sendWelcomeMessage");
 const showAllServices = require("../helperFunctions/showAllServices");
-const handleServiceSelection = require("../helperFunctions/handleServiceSelection");
 const showDateOptions = require("../helperFunctions/showDateOptions");
 const { getTimeOptions, getBookedTimeSlots } = require("../helperFunctions/getTimeOptions");
 const sendServiceDetails = require("../helperFunctions/sendServiceDetails");
@@ -22,6 +21,7 @@ const sendBookingConfirmation = require("../helperFunctions/sendBookingConfirmat
 const { saveConversation, getConversation } = require("../redis/redis");
 const askCarModel = require("../helperFunctions/askCarModel");
 const carWashServices = require("../services/carWashServices");
+const generateSubscriptionId = require('../helperFunctions/generateSubscriptionId');
 const formatText = require("../services/formatText");
 const servicePrices = require("../services/servicePrices");
 
@@ -114,16 +114,6 @@ const incomingMessages = async (req, res) => {
 
         if (!userInput) return res.sendStatus(200);
 
-        // Handle Subscription ID Input
-        // if (conversation[senderId]?.awaitingSubscriptionID && userInput) {
-        //     conversation[senderId].subscriptionID = userInput;
-        //     conversation[senderId].awaitingSubscriptionID = false;
-
-        //     await askCarModel(senderId);
-        //     conversation[senderId].awaitingModelSelection = true;
-        //     return res.sendStatus(200);
-        // }
-
 
         // Handle Subscription ID Input
         if (conversation[senderId]?.awaitingSubscriptionID && userInput) {
@@ -173,10 +163,10 @@ const incomingMessages = async (req, res) => {
                             );
                         } else {
                             conversation[senderId].servicePrice = priceDetails;
-                            await sendMessage(senderId, `✅ The price for ${selectedService} on a ${selectedModel} is ₹${priceDetails}.`);
+                            // await sendMessage(senderId, `✅ The price for ${selectedService} on a ${selectedModel} is ₹${priceDetails}.`);
                             conversation[senderId].awaitingDate = true;
                             // await sendMessage(senderId, "📅 Please select a date for your service.");
-                            await showDateOptions(senderId);
+                            await showDateOptions(senderId, selectedModel, selectedService, priceDetails);
                         }
                     } else {
                         await sendMessage(senderId, "⚠️ No default service found. Please contact support.");
@@ -231,11 +221,11 @@ const incomingMessages = async (req, res) => {
                 } else {
                     conversation[senderId].servicePrice = priceDetails;
                     // If only one price exists, show it directly
-                    await sendMessage(senderId, `✅ The price for ${selectedService} on a ${selectedModel} is ₹${priceDetails}.`);
+                    // await sendMessage(senderId, `✅ The price for ${selectedService} on a ${selectedModel} is ₹${priceDetails}.`);
                     conversation[senderId].awaitingDate = true;
                     conversation[senderId].selectedService = selectedService;
                     // await sendMessage(senderId, "📅 Please select a date for your service.");
-                    await showDateOptions(senderId);
+                    await showDateOptions(senderId, selectedModel, selectedService, priceDetails);
                 }
 
                 conversation[senderId].awaitingService = false;
@@ -257,11 +247,11 @@ const incomingMessages = async (req, res) => {
 
                 conversation[senderId].servicePrice = price;
 
-                await sendMessage(senderId, `✅ The price for ${selectedService} (${listReply}) on a ${selectedModel} is ₹${price}.`);
+                // await sendMessage(senderId, `✅ The price for ${selectedService} (${listReply}) on a ${selectedModel} is ₹${price}.`);
                 conversation[senderId].awaitingPremiumSelection = false;
                 conversation[senderId].awaitingDate = true;
                 // await sendMessage(senderId, "📅 Please select a date for your service.");
-                await showDateOptions(senderId);
+                await showDateOptions(senderId, selectedService, selectedModel, price, listReply);
             } else {
                 conversation[senderId].awaitingPremiumSelection = false;
                 conversation[senderId].awaitingDate = true;
@@ -338,41 +328,7 @@ const incomingMessages = async (req, res) => {
             return res.sendStatus(200);
         };
 
-        // // Vehicle Number Entry
-        // if (conversation[senderId].awaitingCarNumber && messageText) {
-        //     conversation[senderId].carNumber = messageText;
 
-        //     try {
-        //         // check if user already exists with mobile number or car number
-        //         const existingUser = await Booking.findOne({
-        //             $or: [{ phone: senderId }, { carNumber: messageText }]
-        //         });
-
-        //         if (!existingUser) {
-        //             // new customer
-        //             conversation[senderId].isNewCustomer = true;
-        //             await sendMessage(
-        //                 senderId,
-        //                 "🎉Since this is your first booking, you’ll receive a *10% discount* on your service. 🎊"
-        //             );
-        //         } else {
-        //             conversation[senderId].isNewCustomer = false;
-        //         }
-        //     } catch (error) {
-        //         console.error("Error checking existing user:", error);
-        //     }
-
-        //     // Ask for payment method
-        //     const paymentOptions = [
-        //         { type: "reply", reply: { id: "online", title: "💳 Online Payment" } },
-        //         { type: "reply", reply: { id: "pay_at_center", title: "🏢 Pay at Center" } },
-        //     ];
-        //     await sendMessage(senderId, "💰 How would you like to pay?", paymentOptions);
-
-        //     conversation[senderId].awaitingCarNumber = false;
-        //     conversation[senderId].awaitingPaymentMethod = true;
-        //     return res.sendStatus(200);
-        // }
 
 
         // Vehicle Number Entry
@@ -552,6 +508,8 @@ const incomingMessages = async (req, res) => {
         console.log("Received listReply:", listReply);
         console.log("Current Conversation awaiting  State:", conversationState.awaitingConfirmation);
 
+
+
         // Confirm appointment booking
         if (listReply === "confirm_booking" && conversationState?.awaitingConfirmation) {
             console.log("User confirmed booking");
@@ -560,14 +518,19 @@ const incomingMessages = async (req, res) => {
             conversationState.awaitingConfirmation = false;
             await saveConversation(senderId, conversationState);
 
+            const subscriptionId = await generateSubscriptionId();
+
+            const formattedPhone = senderId.startsWith("91") ? senderId.slice(2) : senderId;
+
             const newBooking = new Booking({
                 bookingId: new mongoose.Types.ObjectId(),
+                subscriptionId,
                 paymentMethod: conversationState?.paymentMethod,
                 preferredTimeSlot: conversationState?.selectedTime,
                 preferredDate: conversationState?.selectedDate,
                 carNumber: conversationState?.carNumber ? conversationState.carNumber.toUpperCase() : "Not provided",
                 carMakeModel: conversationState?.selectedModel ? conversationState.selectedModel.toUpperCase() : "Not provided",
-                phone: senderId || "Not provided",
+                phone: formattedPhone || "Not provided",
                 name: userName || "Not provided",
                 serviceType: formatText(conversationState?.selectedService),
                 price: conversationState.paymentMethod.trim().toLowerCase() === "pay at center"
@@ -579,8 +542,9 @@ const incomingMessages = async (req, res) => {
             await sendMessage(
                 senderId,
                 `✅ *Booking Confirmed!*\n\n` +
+                `📄 *Subscription ID:* ${subscriptionId}\n` +
                 `👤 *Name:* ${userName}\n` +
-                `📞 *Phone:* ${senderId}\n` +
+                `📞 *Phone:* ${formattedPhone}\n` +
                 `📅 *Date:* ${conversationState.selectedDate}\n` +
                 `🕒 *Time:* ${conversationState.selectedTime}\n` +
                 `🔧 *Selected Service:* ${formatText(conversationState.selectedService)}\n` +

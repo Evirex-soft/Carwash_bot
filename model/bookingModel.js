@@ -1,5 +1,6 @@
 const mongoose = require('mongoose');
 
+
 const bookingSchema = new mongoose.Schema({
     name: { type: String, required: true },
     phone: { type: String, required: true },
@@ -14,6 +15,7 @@ const bookingSchema = new mongoose.Schema({
     paymentMethod: { type: String, required: true, enum: ["Online", "Pay at Center"] },
     paymentStatus: { type: String, default: "Pending", enum: ["Pending", "Paid", "Failed"] },
     bookingId: { type: String, unique: true },
+    subscriptionId: { type: String, unique: true },
     bookingStatus: { type: String, default: "Confirmed", enum: ["Confirmed", "Cancelled", "Completed"] },
     createdAt: { type: Date, default: Date.now },
 

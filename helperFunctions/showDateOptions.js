@@ -13,17 +13,28 @@ function getNextSevenDays() {
 }
 
 // Show Date & Time
-const showDateOptions = async function (senderId) {
+const showDateOptions = async function (senderId, selectedService, selectedModel, priceDetails, listReply) {
     const nextSevenDays = getNextSevenDays();
     const rows = nextSevenDays.map((date) => ({
         id: `date_${date}`,
         title: date,
     }));
 
+    const title = "📅 Select a Date";
+
+    let bodyText = `✅ The price for *${selectedService}* on a *${selectedModel}* is ₹${priceDetails}.`;
+
+    // 📝 Add the plan type if listReply is provided (like Normal/Premium)
+    if (listReply) {
+        bodyText = `✅ The price for *${selectedService}* (${listReply}) on a *${selectedModel}* is ₹${priceDetails}.`;
+    }
+
+    bodyText += `\n\nPlease select a date for your appointment:`;
+
     await sendListItems(
         senderId,
-        "Select a Date",
-        "Please select a date for your appointments:",
+        title,
+        bodyText,
         [{ title: "Available Dates", rows }]
     );
 };

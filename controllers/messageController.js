@@ -482,9 +482,41 @@ const incomingMessages = async (req, res) => {
             }
 
             // If "Online" is selected, proceed to booking confirmation
-            await saveConversation(senderId, conversation[senderId]);
-            await sendBookingConfirmation(senderId);
-            res.sendStatus(200);
+            if (selectedPaymentMethod === "Online") {
+                const amountInPaise = conversation[senderId].servicePrice * 100;
+
+                const paymentLinkData = {
+                    amount: amountInPaise,
+                    currency: "INR",
+                    description: "Online Payment for Service Booking",
+                    customer: {
+                        name: conversation[senderId].name || "Customer",
+                        contact: senderId,
+                    },
+                    notify: { sms: false, email: false },
+                    reminder_enable: true,
+                    expire_by: Math.floor(Date.now() / 1000) + 3600, // 1 hour validity
+                    notes: { booking_id: senderId }
+                };
+
+                try {
+                    const paymentLink = await razorpay.paymentLink.create(paymentLinkData);
+                    const paymentUrl = paymentLink.short_url;
+
+                    const paymentMessage = `💳 *Online Payment Required*\n\nPlease pay ₹${conversation[senderId].servicePrice} to confirm your booking.\n\n🔗 [Click here to Pay](${paymentUrl})`;
+                    await sendMessage(senderId, paymentMessage);
+
+                    conversation[senderId].awaitingBookingConfirmation = true;
+                } catch (error) {
+                    console.error("Error creating payment link:", error);
+                    await sendMessage(senderId, "⚠️ Online payment link generation failed. Please try again.");
+                }
+                await saveConversation(senderId, conversation[senderId]);
+                res.sendStatus(200);
+            }
+
+            // await sendBookingConfirmation(senderId);
+
         }
 
 

@@ -515,7 +515,7 @@ const incomingMessages = async (req, res) => {
                 res.sendStatus(200);
             }
 
-            // await sendBookingConfirmation(senderId);
+            await sendBookingConfirmation(senderId);
 
         }
 
@@ -562,7 +562,7 @@ const incomingMessages = async (req, res) => {
                 preferredDate: conversationState?.selectedDate,
                 carNumber: conversationState?.carNumber ? conversationState.carNumber.toUpperCase() : "Not provided",
                 carMakeModel: conversationState?.selectedModel ? conversationState.selectedModel.toUpperCase() : "Not provided",
-                phone: formattedPhone || "Not provided",
+                phone: senderId,
                 name: userName || "Not provided",
                 serviceType: formatText(conversationState?.selectedService),
                 price: conversationState.paymentMethod.trim().toLowerCase() === "pay at center"

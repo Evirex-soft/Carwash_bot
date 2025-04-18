@@ -512,12 +512,11 @@ const incomingMessages = async (req, res) => {
                     await sendMessage(senderId, "⚠️ Online payment link generation failed. Please try again.");
                 }
                 await saveConversation(senderId, conversation[senderId]);
-                await sendBookingConfirmation(senderId);
-                res.sendStatus(200);
+                return res.sendStatus(200);
             }
 
 
-
+            await sendBookingConfirmation(senderId);
         }
 
 

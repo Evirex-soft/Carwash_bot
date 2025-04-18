@@ -59,20 +59,26 @@ const incomingMessages = async (req, res) => {
             return res.sendStatus(200);
         }
 
+        conversation[senderId] = conversation[senderId] || {};
+
         // Greetings and Welcome message
         if (messageText === "hi") {
-            conversation[senderId] = conversation[senderId] || {};
 
             const existingCustomer = await Booking.findOne({ phone: senderId });
 
+            conversation[senderId].greeted = true;
             if (!existingCustomer) {
-                conversation[senderId].greeted = true;
                 await sendWelcomeMessage(senderId, userName, true);
             } else {
                 conversation[senderId].greeted = true;
                 await sendWelcomeMessage(senderId, userName, false);
             }
+            return res.sendStatus(200);
+        }
 
+        // If not greeted, ask to type hi
+        if (!conversation[senderId].greeted) {
+            await sendMessage(senderId, "🤖 Please type *hi* to start your booking process.");
             return res.sendStatus(200);
         }
 

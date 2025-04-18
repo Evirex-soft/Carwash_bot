@@ -8,9 +8,9 @@ const razorpayWebhook = async (req, res) => {
         const event = req.body;
 
         if (event.event === "payment_link.paid") {
-            const paymentId = event.payload.payment.entity.id;
+            const paymentEntity = event.payload.payment.entity;
             const senderId = event.payload.payment.entity.notes?.booking_id;
-            const advance = 1;
+            const amountPaid = paymentEntity.amount / 100;
 
             // Retrieve conversation state from Redis
             const conversationState = await getConversation(senderId);
@@ -24,8 +24,17 @@ const razorpayWebhook = async (req, res) => {
                 // Save updated conversation state to Redis
                 await saveConversation(senderId, conversationState);
 
+                let successMessage;
+
                 // Notify user on WhatsApp
-                const successMessage = `✅ Payment of ₹${advance} received successfully!\nYour booking is now confirmed.`;
+                if (conversationState.paymentMethod?.toLowerCase() === "online") {
+                    successMessage = `✅ Payment of ₹${amountPaid} received successfully!\nYour booking is now confirmed.`;
+                } else if (conversationState.paymentMethod?.toLowerCase() === "pay at center") {
+                    successMessage = `✅ Advance payment of ₹${amountPaid} received successfully!\nYour booking is now confirmed.\n\n📍 Please pay the remaining amount at the center.`;
+                } else {
+                    successMessage = `✅ Payment received successfully!\nYour booking is confirmed.`;
+                }
+
                 await sendMessage(senderId, successMessage);
 
                 // Proceed with booking confirmation

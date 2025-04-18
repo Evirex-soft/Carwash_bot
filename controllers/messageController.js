@@ -506,7 +506,7 @@ const incomingMessages = async (req, res) => {
                     const paymentMessage = `💳 *Online Payment Required*\n\nPlease pay ₹${conversation[senderId].servicePrice} to confirm your booking.\n\n🔗 [Click here to Pay](${paymentUrl})`;
                     await sendMessage(senderId, paymentMessage);
 
-                    conversation[senderId].awaitingBookingConfirmation = true;
+                    conversation[senderId].awaitingPaymentConfirmation = true;
                 } catch (error) {
                     console.error("Error creating payment link:", error);
                     await sendMessage(senderId, "⚠️ Online payment link generation failed. Please try again.");

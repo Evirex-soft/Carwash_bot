@@ -686,6 +686,8 @@ const incomingMessages = async (req, res) => {
                 return;
             }
 
+            const conversationState = await getConversation(senderId);
+
             if (conversationState?.awaitingCarRegistration && messageText) {
                 console.log("Inside car registration block");
                 console.log("User entered:", message.text.body);

@@ -680,6 +680,8 @@ const incomingMessages = async (req, res) => {
             }
 
             conversationState = await getConversation(senderId);
+            console.log("conversation state before purchase yes:", conversationState);
+
 
             if (buttonId === "purchase_yes") {
                 await sendMessage(senderId, "Please enter your car registration number (e.g., KL07AB1234):");
@@ -688,12 +690,14 @@ const incomingMessages = async (req, res) => {
                 return;
             }
 
+            console.log("conversation state after purchase yes:", conversationState);
+
 
             if (conversationState?.awaitingCarRegistration && messageText) {
                 console.log("Inside car registration block");
                 console.log("User entered:", message.text.body);
 
-                const regNumber = message.text.body.trim().toUpperCase();
+                const regNumber = messageText.trim().toUpperCase();
 
                 const alreadyExists = await checkIfPackageExists(regNumber, conversationState.selectedPackage);
                 console.log("Check if package already exists:", alreadyExists);

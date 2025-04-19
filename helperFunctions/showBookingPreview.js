@@ -20,9 +20,9 @@ const showBookingPreview = async function (senderId, packageName, paymentMethod)
 
         // 🆔 Generate Subscription ID
         const packagePrefixes = {
-            "package_10_washes": "RD10W",
-            "package_unlimited_1_year": "RDU1Y",
-            "package_unlimited_7_months": "RDU7M",
+            "package_10_washes": "RD3-",
+            "package_unlimited_1_year": "RDU10-",
+            "package_unlimited_7_months": "RDU7-",
         };
 
         const prefix = packagePrefixes[packageId] || "RDGEN";

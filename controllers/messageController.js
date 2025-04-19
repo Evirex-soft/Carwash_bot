@@ -686,7 +686,7 @@ const incomingMessages = async (req, res) => {
                 return;
             }
 
-            if (conversationState?.awaitingCarRegistratio && message?.text?.body) {
+            if (conversationState?.awaitingCarRegistration && message?.text?.body) {
                 const regNumber = message.text.body.trim().toUpperCase();
 
                 const alreadyExists = await checkIfPackageExists(regNumber, conversationState.selectedPackage);

@@ -681,35 +681,32 @@ const incomingMessages = async (req, res) => {
 
             if (buttonId === "purchase_yes") {
                 await sendMessage(senderId, "Please enter your car registration number (e.g., KL07AB1234):");
-                conversation.awaitingCarRegistration = true;
-                await saveConversation(senderId, conversation);
+                conversationState.awaitingCarRegistration = true;
+                await saveConversation(senderId, conversationState);
                 return;
             }
 
-
-            if (buttonId === "purchase_no") {
-                await sendMessage(senderId, "No problem! Let us know if you need anything else. 😊");
-                return;
-            }
-
-
-
-            if (conversation.awaitingCarRegistration && message?.text?.body) {
+            if (conversationState?.awaitingCarRegistratio && message?.text?.body) {
                 const regNumber = message.text.body.trim().toUpperCase();
 
                 const alreadyExists = await checkIfPackageExists(regNumber, conversationState.selectedPackage);
 
                 if (alreadyExists) {
                     await sendMessage(senderId, `🚗 You already have an active package for vehicle number *${regNumber}*.`);
-                    conversation.awaitingCarRegistration = false;
-                    await saveConversation(senderId, conversation);
+                    conversationState.awaitingCarRegistration = false;
+                    await saveConversation(senderId, conversationState);
                 } else {
-                    conversation.carRegistration = regNumber;
-                    conversation.awaitingCarRegistration = false;
-                    await saveConversation(senderId, conversation);
+                    conversationState.carRegistration = regNumber;
+                    conversationState.awaitingCarRegistration = false;
+                    await saveConversation(senderId, conversationState);
 
                     await askPaymentOption(senderId);
                 }
+                return;
+            }
+
+            if (buttonId === "purchase_no") {
+                await sendMessage(senderId, "No problem! Let us know if you need anything else. 😊");
                 return;
             }
 
@@ -757,8 +754,8 @@ const incomingMessages = async (req, res) => {
                     const paymentMessage = `💳 *Online Payment Required*\n\nPlease pay ₹${price} to confirm your booking.\n\n🔗 [Click here to Pay](${paymentUrl})`;
                     await sendMessage(senderId, paymentMessage);
 
-                    conversation[senderId].awaitingPaymentConfirmationPackage = true;
-                    await saveConversation(senderId, conversation[senderId]);
+                    conversationState.awaitingPaymentConfirmationPackage = true;
+                    await saveConversation(senderId, conversationState);
 
                     return res.sendStatus(200);
                 } catch (error) {

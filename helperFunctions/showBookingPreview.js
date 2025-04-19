@@ -12,6 +12,8 @@ const showBookingPreview = async function (senderId, packageName, paymentMethod)
         const userName = conversationState?.name || "Guest";
         const phoneNumber = conversationState?.phone || senderId;
 
+        const regNumber = conversationState?.carRegistration || "Not Provided";
+
         const formattedPackage = formatText(packageName);
         const formattedPayment = formatText(paymentMethod);
         const packageId = packageName;
@@ -59,6 +61,7 @@ const showBookingPreview = async function (senderId, packageName, paymentMethod)
         const previewText =
             `👤 Name: ${userName}
 📞 Phone: ${phoneNumber}
+🚗 Car Number: ${regNumber}
 📦 Package: ${formattedPackage}
 💳 Payment: ${formattedPayment}
 📅 Start Date: ${formattedStart}

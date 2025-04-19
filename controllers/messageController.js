@@ -680,8 +680,8 @@ const incomingMessages = async (req, res) => {
             }
 
             if (buttonId === "purchase_yes") {
-                await askCarModel(senderId);
-                conversation[senderId].awaitingCarModel = true;
+                await sendMessage(senderId, "Please enter your car registration number (e.g., KL07AB1234):");
+                conversation[senderId].awaitingCarRegistration = true;
                 return;
             }
 
@@ -691,16 +691,7 @@ const incomingMessages = async (req, res) => {
                 return;
             }
 
-            if (conversation.awaitingCarModel && message?.text?.body) {
-                const carModel = message.text.body.trim();
-                conversation.carModel = carModel;
-                conversation.awaitingCarModel = false;
-                conversation.awaitingCarRegistration = true;
 
-                await saveConversation(senderId, conversation);
-                await sendMessage(senderId, "Please enter your car registration number (e.g., KL07AB1234):");
-                return;
-            }
 
             if (conversation.awaitingCarRegistration && message?.text?.body) {
                 const regNumber = message.text.body.trim().toUpperCase();
@@ -716,7 +707,6 @@ const incomingMessages = async (req, res) => {
                     conversation.awaitingCarRegistration = false;
                     await saveConversation(senderId, conversation);
 
-                    await sendMessage(senderId, "✅ Registration received. Proceeding to payment options.");
                     await askPaymentOption(senderId);
                 }
                 return;

@@ -4,7 +4,6 @@ const mongoose = require('mongoose');
 const packageSchema = new mongoose.Schema({
     name: { type: String, required: true },
     phone: { type: String, required: true },
-    carMakeModel: { type: String, required: true },
     carNumber: { type: String, required: true },
     selectedPackage: { type: String, },
     startDate: { type: Date, required: true },

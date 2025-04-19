@@ -656,9 +656,11 @@ const incomingMessages = async (req, res) => {
                     selectedPackage = listId;
                     // Fetch priceText from sendServiceDetails
                     const priceText = await sendServiceDetails(senderId, listId);
+                    console.log("price text from send service:", priceText);
 
                     // Get and update conversation state
                     const conversationState = await getConversation(senderId);
+                    console.log("conversation state.....", conversationState);
                     conversationState.selectedPackage = selectedPackage;
                     conversationState.priceText = priceText;
                     await saveConversation(senderId, conversationState);
@@ -691,6 +693,9 @@ const incomingMessages = async (req, res) => {
                 }
 
                 const price = conversationState[senderId]?.priceText
+
+                console.log("price in payment online:", price);
+
 
                 if (!price) {
                     await sendMessage(senderId, "❗ Service price not found. Please try again.");

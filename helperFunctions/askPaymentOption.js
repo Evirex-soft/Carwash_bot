@@ -12,13 +12,12 @@ const askPaymentOption = async function (senderId) {
             type: "interactive",
             interactive: {
                 type: "button",
-                header: { type: "text", text: "💳 Payment Option" },
-                body: { text: "How would you like to pay?" },
-                footer: { text: "Select a payment method" },
+                header: { type: "text", text: "💳 Pay Now" },
+                body: { text: "Please click below to proceed securely." },
+                footer: { text: "Tap the button to continue." },
                 action: {
                     buttons: [
                         { type: "reply", reply: { id: "payment_online", title: "🌐 Online" } },
-                        { type: "reply", reply: { id: "payment_center", title: "🏢 Pay at Center" } }
                     ]
                 }
             }

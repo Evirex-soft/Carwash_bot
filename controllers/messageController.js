@@ -681,7 +681,8 @@ const incomingMessages = async (req, res) => {
 
             if (buttonId === "purchase_yes") {
                 await sendMessage(senderId, "Please enter your car registration number (e.g., KL07AB1234):");
-                conversation[senderId].awaitingCarRegistration = true;
+                conversation.awaitingCarRegistration = true;
+                await saveConversation(senderId, conversation);
                 return;
             }
 
@@ -693,7 +694,7 @@ const incomingMessages = async (req, res) => {
 
 
 
-            if (conversation[senderId].awaitingCarRegistration && message?.text?.body) {
+            if (conversation.awaitingCarRegistration && message?.text?.body) {
                 const regNumber = message.text.body.trim().toUpperCase();
 
                 const alreadyExists = await checkIfPackageExists(regNumber, conversationState.selectedPackage);

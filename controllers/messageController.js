@@ -679,6 +679,8 @@ const incomingMessages = async (req, res) => {
                 }
             }
 
+            const conversationState = await getConversation(senderId);
+
             if (buttonId === "purchase_yes") {
                 await sendMessage(senderId, "Please enter your car registration number (e.g., KL07AB1234):");
                 conversationState.awaitingCarRegistration = true;
@@ -686,7 +688,6 @@ const incomingMessages = async (req, res) => {
                 return;
             }
 
-            const conversationState = await getConversation(senderId);
 
             if (conversationState?.awaitingCarRegistration && messageText) {
                 console.log("Inside car registration block");

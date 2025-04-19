@@ -23,6 +23,7 @@ const askCarModel = require("../helperFunctions/askCarModel");
 const carWashServices = require("../services/carWashServices");
 const generateSubscriptionId = require('../helperFunctions/generateSubscriptionId');
 const formatText = require("../services/formatText");
+const checkIfPackageExists = require("../helperFunctions/checkIfPackageExists");
 const servicePrices = require("../services/servicePrices");
 
 const conversation = {};
@@ -679,10 +680,49 @@ const incomingMessages = async (req, res) => {
             }
 
             if (buttonId === "purchase_yes") {
-                await askPaymentOption(senderId);
-            } else if (buttonId === "purchase_no") {
+                await askCarModel(senderId);
+                conversation[senderId].awaitingCarModel = true;
+                return;
+            }
+
+
+            if (buttonId === "purchase_no") {
                 await sendMessage(senderId, "No problem! Let us know if you need anything else. 😊");
-            } else if (buttonId === "payment_online") {
+                return;
+            }
+
+            if (conversation.awaitingCarModel && message?.text?.body) {
+                const carModel = message.text.body.trim();
+                conversation.carModel = carModel;
+                conversation.awaitingCarModel = false;
+                conversation.awaitingCarRegistration = true;
+
+                await saveConversation(senderId, conversation);
+                await sendMessage(senderId, "Please enter your car registration number (e.g., KL07AB1234):");
+                return;
+            }
+
+            if (conversation.awaitingCarRegistration && message?.text?.body) {
+                const regNumber = message.text.body.trim().toUpperCase();
+
+                const alreadyExists = await checkIfPackageExists(regNumber, conversationState.selectedPackage);
+
+                if (alreadyExists) {
+                    await sendMessage(senderId, `🚗 You already have an active package for vehicle number *${regNumber}*.`);
+                    conversation.awaitingCarRegistration = false;
+                    await saveConversation(senderId, conversation);
+                } else {
+                    conversation.carRegistration = regNumber;
+                    conversation.awaitingCarRegistration = false;
+                    await saveConversation(senderId, conversation);
+
+                    await sendMessage(senderId, "✅ Registration received. Proceeding to payment options.");
+                    await askPaymentOption(senderId);
+                }
+                return;
+            }
+
+            if (buttonId === "payment_online") {
                 console.log("Selected Payment Method:", buttonId);
                 console.log("Selected Package:", selectedPackage);
 
@@ -726,15 +766,17 @@ const incomingMessages = async (req, res) => {
                     const paymentMessage = `💳 *Online Payment Required*\n\nPlease pay ₹${price} to confirm your booking.\n\n🔗 [Click here to Pay](${paymentUrl})`;
                     await sendMessage(senderId, paymentMessage);
 
-                    conversation[senderId].awaitingPaymentConfirmation = true;
+                    conversation[senderId].awaitingPaymentConfirmationPackage = true;
                     await saveConversation(senderId, conversation[senderId]);
-                    //  Show preview  after successful payment link creation
-                    await showBookingPreview(senderId, selectedPackage, buttonId);
+
                     return res.sendStatus(200);
                 } catch (error) {
                     console.error("Error creating payment link:", error);
                     await sendMessage(senderId, "⚠️ Online payment link generation failed. Please try again.");
                 }
+
+                //  Show preview  after successful payment link creation
+                // await showBookingPreview(senderId, selectedPackage, buttonId);
 
 
             } else if (buttonId === "confirm_booking1") {
@@ -744,6 +786,7 @@ const incomingMessages = async (req, res) => {
             }
 
         }
+
         res.sendStatus(200);
     } catch (error) {
         console.error("Error in incoming message function:", error);

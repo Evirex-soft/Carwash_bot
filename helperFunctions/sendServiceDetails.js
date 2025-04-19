@@ -44,6 +44,7 @@ const sendServiceDetails = async function (senderId, serviceId) {
             },
         });
         console.log(`Service details sent to ${senderId}`);
+        return priceText;
     } catch (error) {
         console.error(
             "Error sending service details:",

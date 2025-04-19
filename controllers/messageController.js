@@ -654,7 +654,15 @@ const incomingMessages = async (req, res) => {
                 } else if (packageList.includes(listId)) {
                     console.log("User selected a package, initiating purchase flow...");
                     selectedPackage = listId;
-                    await sendServiceDetails(senderId, listId);
+                    // Fetch priceText from sendServiceDetails
+                    const priceText = await sendServiceDetails(senderId, listId);
+
+                    // Get and update conversation state
+                    const conversationState = await getConversation(senderId);
+                    conversationState.selectedPackage = selectedPackage;
+                    conversationState.priceText = priceText;
+                    await saveConversation(senderId, conversationState);
+
                     await askPackagePurchase(senderId, listId);
                 } else {
                     console.log("Checking if listId exists in carWashServices:", listId, carWashServices[listId]);
@@ -672,7 +680,7 @@ const incomingMessages = async (req, res) => {
                 await askPaymentOption(senderId);
             } else if (buttonId === "purchase_no") {
                 await sendMessage(senderId, "No problem! Let us know if you need anything else. 😊");
-            } else if (buttonId === "payment_online" || buttonId === "payment_center") {
+            } else if (buttonId === "payment_online") {
                 console.log("Selected Payment Method:", buttonId);
                 console.log("Selected Package:", selectedPackage);
 
@@ -682,7 +690,45 @@ const incomingMessages = async (req, res) => {
                     return;
                 }
 
+                const price = conversationState[senderId]?.priceText
+
+                if (!price) {
+                    await sendMessage(senderId, "❗ Service price not found. Please try again.");
+                    return;
+                }
+
+                const amountInPaise = price * 100;
+
+                const paymentLinkData = {
+                    amount: amountInPaise,
+                    currency: "INR",
+                    description: "Online Payment for Purchasing Premium Package",
+                    customer: {
+                        name: conversation[senderId]?.name || "Customer",
+                        contact: senderId
+                    },
+                    notify: { sms: false, email: false },
+                    reminder_enable: true,
+                    expire_by: Math.floor(Date.now() / 1000) + 3600,
+                    notes: { booking_id: senderId }
+                };
+
+                try {
+                    const paymentLink = await razorpay.paymentLink.create(paymentLinkData);
+                    const paymentUrl = paymentLink.short_url;
+
+                    const paymentMessage = `💳 *Online Payment Required*\n\nPlease pay ₹${price} to confirm your booking.\n\n🔗 [Click here to Pay](${paymentUrl})`;
+                    await sendMessage(senderId, paymentMessage);
+
+                    conversation[senderId].awaitingPaymentConfirmation = true;
+                    await saveConversation(senderId, conversation[senderId]);
+                } catch (error) {
+                    console.error("Error creating payment link:", error);
+                    await sendMessage(senderId, "⚠️ Online payment link generation failed. Please try again.");
+                }
+
                 await showBookingPreview(senderId, selectedPackage, buttonId);
+                return res.sendStatus(200);
             } else if (buttonId === "confirm_booking1") {
                 await confirmBooking(senderId);
             } else if (buttonId === "cancel_booking1") {

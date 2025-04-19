@@ -7,15 +7,15 @@ dotenv.config();
 const LOCATION_DETAILS = {
     latitude: "11.258591",
     longitude: "75.785338",
-    name: "🛁 Red Dot Steam Spa 🚗",
-    address: "📍 RedDot Steam Spa, Car Detailing Shop, Basement Focus Mall, Rajaji Road, Calicut\n",
+    name: "🚗 RedDot Steam Spa ",
+    address: "📍 RedDot Steam Spa, Car Detailing Shop, Basement Focus Mall, Rajaji Road, New Bus Stand, Opposite Focus Mall, Calicut\n\n✨ Experience the ultimate car spa & steam wash!",
 };
 
 // Additional Information
 const MESSAGE_TEXT = `
 🌟 *Welcome to Red Dot Steam Spa!* 🌟
 
-🚗 We Owe You The Cleanest Car! 
+✨ We Owe You The Cleanest Car! 
 
 📍 *Find Us Here:* ${LOCATION_DETAILS.name}
 📌 Address: ${LOCATION_DETAILS.address}

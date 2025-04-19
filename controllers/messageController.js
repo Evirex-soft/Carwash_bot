@@ -680,7 +680,6 @@ const incomingMessages = async (req, res) => {
             }
 
             if (buttonId === "purchase_yes") {
-                conversationState = await getConversation(senderId);
                 await sendMessage(senderId, "Please enter your car registration number (e.g., KL07AB1234):");
                 conversationState.awaitingCarRegistration = true;
                 await saveConversation(senderId, conversationState);

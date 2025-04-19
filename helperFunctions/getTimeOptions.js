@@ -12,9 +12,9 @@ const getBookedTimeSlots = async function (date) {
 // Generate Time Slots with booked status
 const getTimeOptions = async function (date) {
     const bookedSlots = await getBookedTimeSlots(date);
-    const startTime = 10 * 60; // 10:00 AM
-    const endTime = 20 * 60; // 8:00 PM
-    const interval = 45;
+    const startTime = 11 * 60; // 11:00 AM
+    const endTime = 22 * 60; // 10:00 PM
+    const interval = 60; // 1 hour
 
     const timeSlots = [];
     for (let time = startTime; time < endTime; time += interval) {

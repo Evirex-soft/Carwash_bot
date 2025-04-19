@@ -8,21 +8,21 @@ const LOCATION_DETAILS = {
     latitude: "11.258591",
     longitude: "75.785338",
     name: "🛁 Red Dot Steam Spa 🚗",
-    address: "📍 Red Dot Steam Spa, Kozhikode, Kerala, India\n\n✨ Experience the ultimate car spa & steam wash!",
+    address: "📍 RedDot Steam Spa, Car Detailing Shop, Basement Focus Mall, Rajaji Road, Calicut\n",
 };
 
 // Additional Information
 const MESSAGE_TEXT = `
 🌟 *Welcome to Red Dot Steam Spa!* 🌟
 
-🚗 Give your car the care it deserves! 
+🚗 We Owe You The Cleanest Car! 
 
 📍 *Find Us Here:* ${LOCATION_DETAILS.name}
 📌 Address: ${LOCATION_DETAILS.address}
 
 🕒 *Business Hours:*  
 🗓️ Monday - Sunday  
-⏰ 10:00 AM - 8:00 PM  
+⏰ 11:00 AM - 11:00 PM  
 
 📞 *Contact Us:* +91 9746246141
 

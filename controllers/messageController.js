@@ -680,6 +680,7 @@ const incomingMessages = async (req, res) => {
             }
 
             if (buttonId === "purchase_yes") {
+                conversationState = await getConversation(senderId);
                 await sendMessage(senderId, "Please enter your car registration number (e.g., KL07AB1234):");
                 conversationState.awaitingCarRegistration = true;
                 await saveConversation(senderId, conversationState);
@@ -687,9 +688,13 @@ const incomingMessages = async (req, res) => {
             }
 
             if (conversationState?.awaitingCarRegistration && message?.text?.body) {
+                console.log("Inside car registration block");
+                console.log("User entered:", message.text.body);
+
                 const regNumber = message.text.body.trim().toUpperCase();
 
                 const alreadyExists = await checkIfPackageExists(regNumber, conversationState.selectedPackage);
+                console.log("Check if package already exists:", alreadyExists);
 
                 if (alreadyExists) {
                     await sendMessage(senderId, `🚗 You already have an active package for vehicle number *${regNumber}*.`);

@@ -679,18 +679,14 @@ const incomingMessages = async (req, res) => {
                 }
             }
 
-            conversationState = await getConversation(senderId);
-            console.log("conversation state before purchase yes:", conversationState);
-
 
             if (buttonId === "purchase_yes") {
                 await sendMessage(senderId, "Please enter your car registration number (e.g., KL07AB1234):");
+                console.log("conversation state in purchase yes:", conversationState);
                 conversationState.awaitingCarRegistration = true;
                 await saveConversation(senderId, conversationState);
                 return;
             }
-
-            console.log("conversation state after purchase yes:", conversationState);
 
 
             if (conversationState?.awaitingCarRegistration && messageText) {

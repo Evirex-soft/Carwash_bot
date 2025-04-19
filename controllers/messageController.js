@@ -693,7 +693,7 @@ const incomingMessages = async (req, res) => {
 
 
 
-            if (conversation.awaitingCarRegistration && message?.text?.body) {
+            if (conversation[senderId].awaitingCarRegistration && message?.text?.body) {
                 const regNumber = message.text.body.trim().toUpperCase();
 
                 const alreadyExists = await checkIfPackageExists(regNumber, conversationState.selectedPackage);

@@ -702,7 +702,8 @@ const incomingMessages = async (req, res) => {
                     return;
                 }
 
-                const amountInPaise = price * 100;
+                const numericPrice = Number(price.replace(/[^\d]/g, ""));
+                const amountInPaise = numericPrice * 100;
 
                 const paymentLinkData = {
                     amount: amountInPaise,
@@ -727,13 +728,15 @@ const incomingMessages = async (req, res) => {
 
                     conversation[senderId].awaitingPaymentConfirmation = true;
                     await saveConversation(senderId, conversation[senderId]);
+                    //  Show preview  after successful payment link creation
+                    await showBookingPreview(senderId, selectedPackage, buttonId);
+                    return res.sendStatus(200);
                 } catch (error) {
                     console.error("Error creating payment link:", error);
                     await sendMessage(senderId, "⚠️ Online payment link generation failed. Please try again.");
                 }
 
-                await showBookingPreview(senderId, selectedPackage, buttonId);
-                return res.sendStatus(200);
+
             } else if (buttonId === "confirm_booking1") {
                 await confirmBooking(senderId);
             } else if (buttonId === "cancel_booking1") {

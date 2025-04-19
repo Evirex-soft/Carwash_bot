@@ -692,7 +692,7 @@ const incomingMessages = async (req, res) => {
                     return;
                 }
 
-                const price = conversationState[senderId]?.priceText
+                const price = conversationState.priceText
 
                 console.log("price in payment online:", price);
 
